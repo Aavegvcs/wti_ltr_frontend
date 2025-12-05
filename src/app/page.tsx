@@ -1,115 +1,164 @@
 
 // "use client";
+
 // import { useState } from "react";
 // import { useRouter } from "next/navigation";
+// import { useTripSheet, TripSheet } from "@/hooks/useTripSheet";
 
-// export default function HomePage() {
+// export default function DriverHomePage() {
 //   const [mobile, setMobile] = useState("");
+//   const [error, setError] = useState<string | null>(null);
+//   const { newTripsheetApi, loading } = useTripSheet();
 //   const router = useRouter();
 
-//   const handleSubmit = (e: React.FormEvent) => {
+//   const handleSubmit = async (e: React.FormEvent) => {
 //     e.preventDefault();
+//     setError(null);
+
 //     if (!/^\d{10}$/.test(mobile)) {
-//       alert("Please enter a valid 10-digit mobile number");
+//       setError("Please enter a valid 10-digit mobile number.");
 //       return;
 //     }
-//     router.push(`/trip-sheet?mobile=${mobile}`);
+
+//     try {
+//       const trip: TripSheet = await newTripsheetApi(mobile);
+
+//       const qs = new URLSearchParams({
+//         mobile,
+//         driverName: trip.driver?.name || "",
+//         corporateName: trip.corporate?.corporateName || "",
+//         branchName: trip.branch?.name || "",
+//         vehicleNumber: trip.vehicle?.vehicleNumber || "",
+//       });
+
+//       router.push(`/trip-sheet?${qs.toString()}`);
+//     } catch (err: any) {
+//       setError(err?.message || "Unable to open trip sheet.");
+//     }
 //   };
 
 //   return (
-//     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4">
-//       <div className="w-full max-w-sm bg-white p-6 rounded-2xl shadow-md">
-//         <h1 className="text-2xl font-semibold text-center mb-4">
-//           Start Your Trip
+//     <div className="min-h-screen flex flex-col bg-white  ">
+//       {/* Top Section */}
+//       <div className="p-6 mt-14">
+//         <h1 className="text-3xl font-bold text-center text-black">
+//           Driver Trip Sheet
 //         </h1>
-//         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-//           <input
-//             type="tel"
-//             value={mobile}
-//             onChange={(e) => setMobile(e.target.value)}
-//             placeholder="Enter 10-digit mobile number"
-//             className="border border-gray-300 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-//             maxLength={10}
-//           />
+//         <p className="text-center text-gray-500 mt-2 text-sm">
+//           Enter your mobile number to continue
+//         </p>
+//       </div>
+
+//       {/* Input Card */}
+//       <div className="px-6 mt-6">
+//         <form
+//           onSubmit={handleSubmit}
+//           className="bg-gray-100 rounded-xl p-5 shadow-sm space-y-5"
+//         >
+//           <div>
+//             <label className="font-semibold text-gray-700">Mobile Number</label>
+//             <input
+//               type="tel"
+//               maxLength={10}
+//               value={mobile}
+//               onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
+//               className="mt-2 w-full border border-gray-300 rounded-lg p-4 text-2xl  font-bold  focus:ring-2 focus:ring-black outline-none"
+//               placeholder="Enter 10-digit number"
+//             />
+//           </div>
+
+//           {error && (
+//             <p className="text-red-600 text-sm text-center">{error}</p>
+//           )}
+
 //           <button
 //             type="submit"
-//             className="bg-blue-600 text-white font-semibold rounded-lg py-3 hover:bg-blue-700 transition-all"
+//             disabled={loading}
+//             className="w-full bg-black text-white text-lg py-4 rounded-lg font-semibold disabled:opacity-60"
 //           >
-//             Continue
+//             {loading ? "Checking..." : "Continue"}
 //           </button>
 //         </form>
 //       </div>
+
+//       {/* Bottom Placeholder for spacing */}
+//       <div className="flex-1" />
 //     </div>
 //   );
 // }
-// app/driver/page.tsx
+// src/app/driver/page.tsx
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTripSheet } from "@/hooks/useTripSheet";
+import { useTripSheet, TripSheet } from "@/hooks/useTripSheet";
 
-export default function DriverHome() {
+export default function DriverHomePage() {
   const [mobile, setMobile] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { newTripsheetApi, loading } = useTripSheet();
   const router = useRouter();
-  const { newTripsheetApi } = useTripSheet();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (!/^\d{10}$/.test(mobile)) {
-      alert("Please enter a valid 10-digit mobile number");
+      setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
     try {
-      setLoading(true);
-      const result = await newTripsheetApi(mobile);
-      // result may be the saved trip sheet or standard wrapper. Normalize:
-      const trip = result?.result ?? result ?? null;
-      if (!trip || !trip.id) {
-        // some backends send saved data in `data` or `result`
-        // try a few fallbacks:
-        const candidate = (result?.data ?? result?.result ?? result) as any;
-        if (!candidate || !candidate.id) {
-          alert("Could not create or fetch tripsheet. Try again.");
-          setLoading(false);
-          return;
-        }
-      }
-      // store trip object in sessionStorage for pages to consume
-      const normalized = trip?.id ? trip : result;
-      sessionStorage.setItem("currentTrip", JSON.stringify(normalized));
-      setLoading(false);
-      router.push(`/trip-sheet`);
+      const trip: TripSheet = await newTripsheetApi(mobile);
+
+      const qs = new URLSearchParams({
+        mobile,
+        driverName: trip.driver?.name || "",
+        corporateName: trip.corporate?.corporateName || "",
+        branchName: trip.branch?.name || "",
+        vehicleNumber: trip.vehicle?.vehicleNumber || "",
+      });
+
+      router.push(`/trip-sheet?${qs.toString()}`);
     } catch (err: any) {
-      setLoading(false);
-      console.error(err);
-      alert(err?.message ?? "Failed to fetch/create trip sheet");
+      setError(err?.message || "Unable to open trip sheet.");
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4">
-      <div className="w-full max-w-sm bg-white p-6 rounded-2xl shadow-md">
-        <h1 className="text-2xl font-semibold text-center mb-4">Start Your Trip</h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
-            type="tel"
-            value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
-            placeholder="Enter 10-digit mobile number"
-            className="border border-gray-300 rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            maxLength={10}
-          />
+    <div className="min-h-screen flex flex-col bg-white">
+      <div className="p-6 mt-14">
+        <h1 className="text-3xl font-bold text-center text-black">Driver Trip Sheet</h1>
+        <p className="text-center text-gray-500 mt-2 text-sm">Enter your mobile number to continue</p>
+      </div>
+
+      <div className="px-6 mt-6">
+        <form onSubmit={handleSubmit} className="bg-gray-100 rounded-xl p-5 shadow-sm space-y-5">
+          <div>
+            <label className="font-semibold text-gray-700">Mobile Number</label>
+            <input
+              type="tel"
+              maxLength={10}
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
+              className="mt-2 w-full border border-gray-300 rounded-lg p-4 text-2xl font-bold focus:ring-2 focus:ring-black outline-none"
+              placeholder="Enter 10-digit number"
+            />
+          </div>
+
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-3 hover:bg-blue-700 transition-all"
+            className="w-full bg-black text-white text-lg py-4 rounded-lg font-semibold disabled:opacity-60 cursor-pointer"
           >
-            {loading ? "Loading..." : "Continue"}
+            {loading ? "Checking..." : "Continue"}
           </button>
         </form>
       </div>
+
+      <div className="flex-1" />
     </div>
   );
 }

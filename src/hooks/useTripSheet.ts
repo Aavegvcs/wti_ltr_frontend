@@ -1,114 +1,87 @@
-// src/hooks/useTripSheet.ts
-import { useCallback, useState } from "react";
+
+// "use client";
+
+// import { useState, useCallback } from "react";
+// import axiosInstance from "@/utils/config-global";
+
+// export type TripSheet = any; // keep flexible; you can create an interface later
+
+// function extractResult(res: any) {
+//   const top = res?.data;
+//   const data = top?.data;
+//   const ok = !!data?.status;
+//   const msg = data?.message || top?.message || "Something went wrong";
+//   return { ok, msg, result: data?.result || data?.data || null };
+// }
+
+// export function useTripSheet() {
+//   const [loading, setLoading] = useState(false);
+
+//   const newTripsheetApi = useCallback(async (mobile: string): Promise<TripSheet> => {
+//     setLoading(true);
+//     try {
+//       const res = await axiosInstance.post("/tripsheet/newTripsheetApi", { driverMobile: mobile });
+//       const { ok, msg, result } = extractResult(res);
+
+//       if (!ok || !result) {
+//         throw new Error(msg || "Unable to open trip sheet.");
+//       }
+
+//       return result;
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, []);
+
+//   const submitTripSheet = useCallback(async (payload: any) => {
+//     const res = await axiosInstance.patch("/tripsheet/updateTripsheetApi", payload);
+//     const { ok, msg } = extractResult(res);
+//     if (!ok) throw new Error(msg || "Unable to submit trip sheet.");
+//     return true;
+//   }, []);
+
+//   return { newTripsheetApi, submitTripSheet, loading };
+// }
+"use client";
+
+import { useState, useCallback } from "react";
 import axiosInstance from "@/utils/config-global";
 
-type StandardResponse<T = any> = {
-  success?: boolean;
-  message?: string;
-  statusCode?: number;
-  result?: T;
-  data?: T;
-};
+export type TripSheet = any; // keep flexible; you can create an interface later
+
+function extractResult(res: any) {
+  const top = res?.data;
+  const data = top?.data;
+  const ok = !!data?.status;
+  const msg = data?.message || top?.message || "Something went wrong";
+  return { ok, msg, result: data?.result || data?.data || null };
+}
 
 export function useTripSheet() {
   const [loading, setLoading] = useState(false);
 
-  const newTripsheetApi = useCallback(async (driverMobile: string) => {
+  const newTripsheetApi = useCallback(async (mobile: string): Promise<TripSheet> => {
     setLoading(true);
     try {
-      const payload = { driverMobile };
-      const res = await axiosInstance.post<StandardResponse>("/tripsheet/newTripsheetApi", payload);
+      const res = await axiosInstance.post("/tripsheet/newTripsheetApi", { driverMobile: mobile });
+      const { ok, msg, result } = extractResult(res);
+
+      if (!ok || !result) {
+        throw new Error(msg || "Unable to open trip sheet.");
+      }
+
+      return result;
+    } finally {
       setLoading(false);
-      // server uses standardResponse wrapper - result may be in result or data
-      return res.data.result ?? res.data.data ?? res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
     }
   }, []);
 
-  const getOrCreate = useCallback(async (mobileNumber: string, tripDate?: string) => {
-    setLoading(true);
-    try {
-      const payload: any = { mobileNumber };
-      if (tripDate) payload.tripDate = tripDate;
-      const res = await axiosInstance.post<StandardResponse>("/tripsheet/get-or-create", payload);
-      setLoading(false);
-      return res.data.result ?? res.data.data ?? res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
+  const submitTripSheet = useCallback(async (payload: any) => {
+    const res = await axiosInstance.patch("/tripsheet/updateTripsheetApi", payload);
+    const { ok, msg } = extractResult(res);
+    if (!ok) throw new Error(msg || "Unable to submit trip sheet.");
+    return true;
   }, []);
 
-  const saveTripSheet = useCallback(async (id: number, body: any) => {
-    setLoading(true);
-    try {
-      const res = await axiosInstance.patch<StandardResponse>(`/tripsheet/save/${id}`, body);
-      setLoading(false);
-      return res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
-  }, []);
-
-  const submitTripSheet = useCallback(async (id: number) => {
-    setLoading(true);
-    try {
-      const res = await axiosInstance.patch<StandardResponse>(`/tripsheet/submit/${id}`);
-      setLoading(false);
-      return res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
-  }, []);
-
-  const closeTripSheet = useCallback(async (id: number) => {
-    setLoading(true);
-    try {
-      const res = await axiosInstance.patch<StandardResponse>(`/tripsheet/close/${id}`);
-      setLoading(false);
-      return res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
-  }, []);
-
-  const reopenTripSheet = useCallback(async (id: number) => {
-    setLoading(true);
-    try {
-      const res = await axiosInstance.patch<StandardResponse>(`/tripsheet/reopen/${id}`);
-      setLoading(false);
-      return res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
-  }, []);
-
-  const getTripsByDriver = useCallback(async (driverId: number) => {
-    setLoading(true);
-    try {
-      const res = await axiosInstance.get<StandardResponse>(`/tripsheet/driver/${driverId}`);
-      setLoading(false);
-      return res.data.result ?? res.data.data ?? res.data;
-    } catch (err: any) {
-      setLoading(false);
-      throw err;
-    }
-  }, []);
-
-  return {
-    loading,
-    newTripsheetApi,
-    getOrCreate,
-    saveTripSheet,
-    submitTripSheet,
-    closeTripSheet,
-    reopenTripSheet,
-    getTripsByDriver,
-  };
+  return { newTripsheetApi, submitTripSheet, loading };
 }

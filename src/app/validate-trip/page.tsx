@@ -1,136 +1,117 @@
-// "use client";
-// import { useEffect, useState } from "react";
 
-// export default function ValidateTrip() {
-//   const [tripData, setTripData] = useState<any>(null);
-
-//   useEffect(() => {
-//     const data = JSON.parse(localStorage.getItem("tripSheet") || "{}");
-//     setTripData(data);
-//   }, []);
-
-//   if (!tripData) return <p className="text-center mt-10">Loading...</p>;
-
-//   const handleFinalSubmit = () => {
-//     console.log("Submitting Trip:", tripData);
-//     alert("Trip submitted successfully!");
-//     localStorage.removeItem("tripSheet");
-//   };
-
-//   return (
-//     <div className="min-h-screen flex flex-col items-center bg-gray-50 px-4 py-8">
-//       <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-md">
-//         <h1 className="text-2xl font-semibold text-center mb-4">Validate Trip</h1>
-
-//         <div className="text-sm space-y-2">
-//           <p><strong>Driver:</strong> {tripData.driverName}</p>
-//           <p><strong>Mobile:</strong> {tripData.mobile}</p>
-//           <p><strong>Corporate:</strong> {tripData.corporateName}</p>
-//           <p><strong>Vehicle:</strong> {tripData.vehicleNo}</p>
-//           <p><strong>Start Location:</strong> {tripData.startLocation}</p>
-//           <p><strong>End Location:</strong> {tripData.endLocation}</p>
-//           <p><strong>Start Time:</strong> {tripData.startTime}</p>
-//           <p><strong>End Time:</strong> {tripData.endTime}</p>
-//           <p><strong>Odometer Start:</strong> {tripData.odometerStart}</p>
-//           <p><strong>Odometer End:</strong> {tripData.odometerEnd}</p>
-//         </div>
-
-//         <div className="mt-4 space-y-4">
-//           <div>
-//             <p className="font-medium text-sm mb-1">Driver Signature:</p>
-//             <img src={tripData.driverSignature} alt="Driver Signature" className="border rounded-md" />
-//           </div>
-//           <div>
-//             <p className="font-medium text-sm mb-1">Passenger Signature:</p>
-//             <img src={tripData.passengerSignature} alt="Passenger Signature" className="border rounded-md" />
-//           </div>
-//         </div>
-
-//         <button onClick={handleFinalSubmit} className="bg-green-600 text-white w-full mt-6 py-3 rounded-lg font-medium hover:bg-green-700">
-//           Submit Trip Sheet
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }
-// app/validate-trip/page.tsx
 "use client";
-import { useEffect, useState } from "react";
-import { useTripSheet } from "@/hooks/useTripSheet";
-import { useRouter } from "next/navigation";
 
-export default function ValidateTripPage() {
+import { useSearchParams, useRouter } from "next/navigation";
+import { useTripSheet } from "@/hooks/useTripSheet";
+import { useState } from "react";
+
+export default function ValidateTrip() {
+  const sp = useSearchParams();
   const router = useRouter();
   const { submitTripSheet } = useTripSheet();
-  const [trip, setTrip] = useState<any>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const raw = sessionStorage.getItem("currentTrip");
-    if (!raw) {
-      router.push("/driver");
-      return;
-    }
-    setTrip(JSON.parse(raw));
-  }, [router]);
+  const id = sp.get("id");
 
-  if (!trip) return <p className="text-center mt-10">Loading...</p>;
+  const driverName = sp.get("driverName") || "";
+  const mobile = sp.get("mobile") || "";
+  const corporateName = sp.get("corporateName") || "";
+  const branchName = sp.get("branchName") || "";
+  const vehicleNumber = sp.get("vehicleNumber") || "";
 
-  const handleFinalSubmit = async () => {
+  const tripDate = sp.get("tripDate") || "";
+  const startTime = sp.get("startTime") || "";
+  const endTime = sp.get("endTime") || "";
+  const sourceName = sp.get("sourceName") || "";
+  const destinationName = sp.get("destinationName") || "";
+  const startOdometer = sp.get("startOdometer") || "";
+  const endOdometer = sp.get("endOdometer") || "";
+  const totalKm = sp.get("totalKm") || "";
+
+  const driverSign = sp.get("driverSign") || "";
+  const userSign = sp.get("userSign") || "";
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    setLoading(true);
     try {
-      setSubmitting(true);
-      await submitTripSheet(Number(trip.id));
-      // clear session
-      sessionStorage.removeItem("currentTrip");
-      setSubmitting(false);
-      alert("Trip submitted successfully!");
-      router.push("/driver");
+      await submitTripSheet({
+        tripSheetId: Number(id),
+        tripStatus: 1, // SUBMITTED
+        driverSign,
+        userSign,
+      });
+
+      router.push("/success");
     } catch (err: any) {
-      setSubmitting(false);
-      console.error(err);
-      alert("Failed to submit trip: " + (err?.message ?? ""));
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-md">
-        <h1 className="text-2xl font-semibold text-center mb-4">Validate Trip</h1>
+    <div className="min-h-screen bg-gray-100 p-4 pb-32">
+      <div className="relative">
+        <button onClick={() => router.push(`/trip-sheet?mobile=${mobile}&driverName=${driverName}&corporateName=${corporateName}&branchName=${branchName}&vehicleNumber=${vehicleNumber}`)} className="absolute left-0 top-0 bg-gray-200 px-3 py-1 rounded text-sm">Edit</button>
+        <h1 className="text-xl font-bold text-center mb-4">Review Trip Details</h1>
+      </div>
 
-        <div className="text-sm space-y-2">
-          <p><strong>Driver:</strong> {trip.driver?.name ?? trip.driverName}</p>
-          <p><strong>Mobile:</strong> {trip.driver?.mobileNumber ?? trip.mobile}</p>
-          <p><strong>Corporate:</strong> {trip.corporate?.corporateName ?? trip.corporateName}</p>
-          <p><strong>Vehicle:</strong> {trip.vehicle?.vehicleNumber ?? trip.vehicleNo}</p>
-          <p><strong>Start Location:</strong> {trip.sourceName}</p>
-          <p><strong>End Location:</strong> {trip.destinationName}</p>
-          <p><strong>Start Time:</strong> {trip.startTime}</p>
-          <p><strong>End Time:</strong> {trip.endTime}</p>
-          <p><strong>Odometer Start:</strong> {trip.odometerStart}</p>
-          <p><strong>Odometer End:</strong> {trip.odometerEnd}</p>
+      <div className="bg-white p-5 rounded-xl shadow space-y-4 text-sm">
+        <div className="flex justify-between"><span>Driver:</span><span className="font-medium">{driverName}</span></div>
+        <div className="flex justify-between"><span>Mobile:</span><span className="font-medium">{mobile}</span></div>
+        <div className="flex justify-between"><span>Corporate:</span><span className="font-medium">{corporateName}</span></div>
+        <div className="flex justify-between"><span>Branch:</span><span className="font-medium">{branchName}</span></div>
+        <div className="flex justify-between"><span>Vehicle:</span><span className="font-medium">{vehicleNumber}</span></div>
+
+        <hr />
+
+        <div className="flex justify-between"><span>Trip Date:</span><span className="font-medium">{tripDate}</span></div>
+        <div className="flex justify-between"><span>Start Time:</span><span className="font-medium">{startTime}</span></div>
+        <div className="flex justify-between"><span>End Time:</span><span className="font-medium">{endTime}</span></div>
+
+        <hr />
+
+        <div className="flex justify-between"><span>Start Location:</span><span className="font-medium">{sourceName}</span></div>
+        <div className="flex justify-between"><span>End Location:</span><span className="font-medium">{destinationName}</span></div>
+
+        <hr />
+
+        <div className="flex justify-between"><span>Start Odometer:</span><span className="font-medium">{startOdometer}</span></div>
+        <div className="flex justify-between"><span>End Odometer:</span><span className="font-medium">{endOdometer}</span></div>
+
+        <div className="flex justify-between text-lg font-semibold"><span>Total KM:</span><span>{totalKm}</span></div>
+
+        <hr />
+
+        <div>
+          <p className="font-medium">Driver Signature:</p>
+          {driverSign ? (
+            <img src={driverSign} alt="driver-sign" className="h-24 border rounded mt-2" />
+          ) : (
+            <p className="text-gray-500 text-xs">No signature uploaded</p>
+          )}
         </div>
 
-        <div className="mt-4 space-y-4">
-          <div>
-            <p className="font-medium text-sm mb-1">Driver Signature:</p>
-            {trip.driverSign ? (
-              <img src={trip.driverSign} alt="Driver Signature" className="border rounded-md" />
-            ) : (
-              <p className="text-xs text-gray-500">No signature captured</p>
-            )}
-          </div>
-          <div>
-            <p className="font-medium text-sm mb-1">Passenger Signature:</p>
-            {trip.userSign ? (
-              <img src={trip.userSign} alt="Passenger Signature" className="border rounded-md" />
-            ) : (
-              <p className="text-xs text-gray-500">No signature captured</p>
-            )}
-          </div>
+        <div className= "pb-4">
+          <p className="font-medium">Passenger Signature:</p>
+          {userSign ? (
+            <img src={userSign} alt="user-sign" className="h-24 border rounded mt-2" />
+          ) : (
+            <p className="text-gray-500 text-xs">No signature uploaded</p>
+          )}
         </div>
 
-        <button onClick={handleFinalSubmit} disabled={submitting} className="bg-green-600 text-white w-full mt-6 py-3 rounded-lg font-medium hover:bg-green-700 disabled:opacity-60">
-          {submitting ? "Submitting..." : "Submit Trip Sheet"}
+        {error && <p className="text-red-600 text-center text-sm">{error}</p>}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4">
+        <button onClick={handleSubmit} disabled={loading} className="w-full bg-black text-white py-4 rounded-lg text-lg font-bold">
+          {loading ? "Submitting..." : "Submit Trip Sheet"}
+        </button>
+        <button onClick={() => router.push(`/trip-sheet?mobile=${mobile}&driverName=${driverName}&corporateName=${corporateName}&branchName=${branchName}&vehicleNumber=${vehicleNumber}`)} className="w-full mt-2 border py-3 rounded-lg text-lg font-semibold">
+          Edit Trip
         </button>
       </div>
     </div>

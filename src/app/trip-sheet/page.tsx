@@ -1,239 +1,1120 @@
+
 // "use client";
+
 // import { useEffect, useRef, useState } from "react";
-// import SignatureCanvas from "react-signature-canvas";
-// import { useRouter } from "next/navigation";
+// import { useRouter, useSearchParams } from "next/navigation";
+// import SignaturePad from "react-signature-canvas";
+// import { useTripSheet, TripSheet } from "@/hooks/useTripSheet";
+// import { debouncedUpdateTripSheet, flushTripAutosave } from "@/utils/TripsheetDebounce";
+// import { UploadFiletos3Bucket } from "@/utils/uploadToS3";
 
-// export default function TripSheet() {
+// const LTR_CONTAINER = "signature";
+
+// export default function TripSheetPage() {
 //   const router = useRouter();
+//   const sp = useSearchParams();
 
-//   const [driverData, setDriverData] = useState<any>(null);
+//   const mobile = sp.get("mobile") || "";
+//   const driverName = sp.get("driverName") || "";
+//   const corporateName = sp.get("corporateName") || "";
+//   const branchName = sp.get("branchName") || "";
+//   const vehicleNumber = sp.get("vehicleNumber") || "";
 
-//   // Trip fields
+//   const { newTripsheetApi } = useTripSheet();
+
+//   const [trip, setTrip] = useState<TripSheet | null>(null);
+//   const [loading, setLoading] = useState(true);
+//   const [saving, setSaving] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
+
+//   // Form fields
 //   const [tripDate, setTripDate] = useState("");
 //   const [startTime, setStartTime] = useState("");
 //   const [endTime, setEndTime] = useState("");
-//   const [startLocation, setStartLocation] = useState("");
-//   const [endLocation, setEndLocation] = useState("");
-//   const [odometerStart, setOdometerStart] = useState("");
-//   const [odometerEnd, setOdometerEnd] = useState("");
+//   const [sourceName, setSourceName] = useState("");
+//   const [destinationName, setDestinationName] = useState("");
+//   const [startOdometer, setStartOdometer] = useState("");
+//   const [endOdometer, setEndOdometer] = useState("");
+//   // const[totalKm,setTotalKm]=useState("")
 
-//   // Signatures
-//   const driverSign = useRef<SignatureCanvas | null>(null);
-//   const passengerSign = useRef<SignatureCanvas | null>(null);
+//   // Validation errors (shown after submit if invalid)
+//   const [errors, setErrors] = useState<Record<string, string>>({
+//     tripDate: "",
+//     startTime: "",
+//     endTime: "",
+//     sourceName: "",
+//     destinationName: "",
+//     startOdometer: "",
+//     endOdometer: "",
+//     signatures: "",
+//   });
 
+//   // Signature refs
+//   const driverRef = useRef<any>(null);
+//   const userRef = useRef<any>(null);
+
+//   const [driverSignUrl, setDriverSignUrl] = useState<string>("");
+//   const [userSignUrl, setUserSignUrl] = useState<string>("");
+
+//   // Load trip sheet
 //   useEffect(() => {
-//     const details = JSON.parse(localStorage.getItem("driverDetails") || "{}");
-//     setDriverData(details);
-
-//     const now = new Date();
-//     setTripDate(now.toISOString().split("T")[0]);
-//     setStartTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-//   }, []);
-
-//   const handleSave = () => {
-//     if (!odometerStart || !odometerEnd || !startLocation || !endLocation) {
-//       alert("Please fill all trip details");
+//     if (!mobile) {
+//       router.push("/");
 //       return;
 //     }
 
-//     const driverSignature = driverSign.current?.getTrimmedCanvas().toDataURL();
-//     const passengerSignature = passengerSign.current?.getTrimmedCanvas().toDataURL();
+//     const load = async () => {
+//       try {
+//         setError(null);
+//         setLoading(true);
+//         const t = await newTripsheetApi(mobile);
 
-//     const fullTripData = {
-//       ...driverData,
-//       tripDate,
-//       startTime,
-//       endTime,
-//       startLocation,
-//       endLocation,
-//       odometerStart,
-//       odometerEnd,
-//       driverSignature,
-//       passengerSignature,
+//         setTrip(t);
+//         setTripDate(t.tripDate ? t.tripDate.substring(0, 10) : "");
+//         setStartTime(t.startTime ?? "");
+//         setEndTime(t.endTime ?? "");
+//         setSourceName(t.sourceName ?? "");
+//         setDestinationName(t.destinationName ?? "");
+//         setStartOdometer(t.startOdometer ? String(t.startOdometer) : "");
+//         setEndOdometer(t.endOdometer ? String(t.endOdometer) : "");
+//         if (t.driverSign) setDriverSignUrl(t.driverSign);
+//         if (t.userSign) setUserSignUrl(t.userSign);
+//       } catch (err: any) {
+//         setError(err?.message || "Failed to load trip sheet.");
+//       } finally {
+//         setLoading(false);
+//       }
 //     };
 
-//     localStorage.setItem("tripSheet", JSON.stringify(fullTripData));
-//     router.push("/validate-trip");
+//     load();
+//   }, [mobile, newTripsheetApi, router]);
+
+//   // Utility to show a saving indicator briefly
+//   useEffect(() => {
+//     if (!saving) return;
+//     const id = setTimeout(() => setSaving(false), 700);
+//     return () => clearTimeout(id);
+//   }, [saving]);
+
+//   const totalKm = () => {
+//     const s = Number(startOdometer);
+//     const e = Number(endOdometer);
+//     if (!Number.isFinite(s) || !Number.isFinite(e)) return "";
+//     if (e < s) return "";
+//     return String(e - s);
 //   };
 
+//   const dataUrlToFile = async (dataUrl: string, fileName: string) => {
+//     const res = await fetch(dataUrl);
+//     const blob = await res.blob();
+//     return new File([blob], fileName, { type: "image/png" });
+//   };
+
+//   // Per-field autosave helper (uses the global debounced util)
+//   const autosaveField = (payload: Record<string, any>) => {
+//     if (!trip?.id) return;
+//     setSaving(true);
+//     debouncedUpdateTripSheet({ tripSheetId: trip.id, ...payload });
+//   };
+
+//   // Validate strictly at submit
+//   const validateOnSubmit = () => {
+//     const newErrors: Record<string, string> = {};
+//     if (!tripDate) newErrors.tripDate = "Trip date is required.";
+//     if (!startTime) newErrors.startTime = "Start time is required.";
+//     if (!endTime) newErrors.endTime = "End time is required.";
+//     if (!sourceName.trim()) newErrors.sourceName = "Start location is required.";
+//     if (!destinationName.trim()) newErrors.destinationName = "End location is required.";
+//     if (!startOdometer) newErrors.startOdometer = "Start odometer is required.";
+//     if (!endOdometer) newErrors.endOdometer = "End odometer is required.";
+//     if (!driverSignUrl) newErrors.signatures = "Driver and passenger signatures are mandatory.";
+//     if (!userSignUrl) newErrors.signatures = "Driver and passenger signatures are mandatory.";
+
+//     setErrors((prev) => ({ ...prev, ...newErrors }));
+//     return Object.keys(newErrors).length === 0;
+//   };
+
+//   // Handlers for fields — autosave on change
+//   // All values are converted to proper types (null when empty)
+//   const onTripDateChange = (v: string) => {
+//     setTripDate(v);
+//     autosaveField({ tripDate: v || null });
+//   };
+
+//   const onStartTimeChange = (v: string) => {
+//     setStartTime(v);
+//     autosaveField({ startTime: v || null });
+//   };
+
+//   const onEndTimeChange = (v: string) => {
+//     setEndTime(v);
+//     autosaveField({ endTime: v || null });
+//   };
+
+//   const onSourceNameChange = (v: string) => {
+//     setSourceName(v);
+//     autosaveField({ sourceName: v || null });
+//   };
+
+//   const onDestinationNameChange = (v: string) => {
+//     setDestinationName(v);
+//     autosaveField({ destinationName: v || null });
+//   };
+
+//   const onStartOdometerChange = (v: string) => {
+//     const clean = v.replace(/\D/g, "");
+//     setStartOdometer(clean);
+//     autosaveField({ startOdometer: clean ? Number(clean) : null });
+//   };
+
+//   const onEndOdometerChange = (v: string) => {
+//     const clean = v.replace(/\D/g, "");
+//     setEndOdometer(clean);
+//     autosaveField({ endOdometer: clean ? Number(clean) : null });
+//   };
+
+//   // Signature save helpers (uploads signature file, saves url + coords)
+//   const saveDriverSignature = async () => {
+//     try {
+//       if (!driverRef.current || driverRef.current.isEmpty()) {
+//         setError("Please provide driver signature before saving.");
+//         return;
+//       }
+
+//       const dataUrl = driverRef.current.getTrimmedCanvas().toDataURL("image/png");
+//       const file = await dataUrlToFile(dataUrl, `driver-sign-${Date.now()}.png`);
+//       const url = await UploadFiletos3Bucket(file, LTR_CONTAINER);
+//       setDriverSignUrl(url);
+
+//       // get location if available and send
+//       if ("geolocation" in navigator) {
+//         navigator.geolocation.getCurrentPosition(
+//           (pos) => {
+//             autosaveField({
+//               driverSign: url,
+//               driverSignLat: pos.coords.latitude,
+//               driverSignLng: pos.coords.longitude,
+//             });
+//           },
+//           () => {
+//             autosaveField({ driverSign: url });
+//           }
+//         );
+//       } else {
+//         autosaveField({ driverSign: url });
+//       }
+//     } catch (err: any) {
+//       console.error("Driver signature upload failed", err);
+//       setError("Driver signature upload failed");
+//     }
+//   };
+
+//   const saveUserSignature = async () => {
+//     try {
+//       if (!userRef.current || userRef.current.isEmpty()) {
+//         setError("Please provide passenger signature before saving.");
+//         return;
+//       }
+
+//       const dataUrl = userRef.current.getTrimmedCanvas().toDataURL("image/png");
+//       const file = await dataUrlToFile(dataUrl, `user-sign-${Date.now()}.png`);
+//       const url = await UploadFiletos3Bucket(file, LTR_CONTAINER);
+//       setUserSignUrl(url);
+
+//       if ("geolocation" in navigator) {
+//         navigator.geolocation.getCurrentPosition(
+//           (pos) => {
+//             autosaveField({
+//               userSign: url,
+//               userSignLat: pos.coords.latitude,
+//               userSignLng: pos.coords.longitude,
+//             });
+//           },
+//           () => {
+//             autosaveField({ userSign: url });
+//           }
+//         );
+//       } else {
+//         autosaveField({ userSign: url });
+//       }
+//     } catch (err: any) {
+//       console.error("Passenger signature upload failed", err);
+//       setError("Passenger signature upload failed");
+//     }
+//   };
+
+//   if (loading) return <p className="text-center mt-10">Loading...</p>;
+
+//   if (error && !trip)
+//     return (
+//       <div className="min-h-screen flex items-center justify-center text-red-600">
+//         {error}
+//       </div>
+//     );
+
 //   return (
-//     <div className="min-h-screen bg-gray-50 flex flex-col items-center px-4 py-6">
-//       <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-md space-y-6">
-//         <h1 className="text-2xl font-semibold text-center mb-4">Trip Sheet</h1>
+//     <div className="min-h-screen bg-gray-100 pt-16 pb-16 p-4">
+//       <div className="bg-white rounded-xl shadow p-4 space-y-2">
+//         <div className="font-semibold text-lg">Trip Information</div>
 
-//         {/* Driver & Vehicle Info */}
-//         {driverData && (
-//           <div className="space-y-1 text-sm">
-//             <p><strong>Mobile:</strong> {driverData.mobile}</p>
-//             <p><strong>Driver:</strong> {driverData.driverName}</p>
-//             <p><strong>Vehicle:</strong> {driverData.vehicleNo}</p>
-//             <p><strong>Corporate:</strong> {driverData.corporateName}</p>
+//         <div className="text-sm text-gray-700 flex justify-between">
+//           <span>Driver:</span>
+//           <span className="font-medium">{driverName}</span>
+//         </div>
+
+//         <div className="text-sm text-gray-700 flex justify-between">
+//           <span>Mobile:</span>
+//           <span className="font-medium">{mobile}</span>
+//         </div>
+
+//         <div className="text-sm text-gray-700 flex justify-between">
+//           <span>Corporate:</span>
+//           <span className="font-medium">{corporateName}</span>
+//         </div>
+
+//         <div className="text-sm text-gray-700 flex justify-between">
+//           <span>Branch:</span>
+//           <span className="font-medium">{branchName}</span>
+//         </div>
+
+//         <div className="text-sm text-gray-700 flex justify-between">
+//           <span>Vehicle:</span>
+//           <span className="font-medium">{vehicleNumber}</span>
+//         </div>
+//       </div>
+
+//       <div className="mt-6 space-y-4">
+//         {/* Trip Date */}
+//         <div>
+//           <label className="font-semibold text-gray-700">Trip Date</label>
+//           <input
+//             type="date"
+//             value={tripDate}
+//             onChange={(e) => onTripDateChange(e.target.value)}
+//             className="mt-1 w-full border rounded-lg p-3"
+//           />
+//           {errors.tripDate && <p className="text-red-500 text-sm">{errors.tripDate}</p>}
+//         </div>
+
+//         {/* Start Time */}
+//         <div>
+//           <label className="font-semibold text-gray-700">Start Time</label>
+//           <input
+//             type="time"
+//             value={startTime}
+//             onChange={(e) => onStartTimeChange(e.target.value)}
+//             className="mt-1 w-full border rounded-lg p-3"
+//           />
+//           {errors.startTime && <p className="text-red-500 text-sm">{errors.startTime}</p>}
+//         </div>
+
+//         {/* End Time */}
+//         <div>
+//           <label className="font-semibold text-gray-700">End Time</label>
+//           <input
+//             type="time"
+//             value={endTime}
+//             onChange={(e) => onEndTimeChange(e.target.value)}
+//             className="mt-1 w-full border rounded-lg p-3"
+//           />
+//           {errors.endTime && <p className="text-red-500 text-sm">{errors.endTime}</p>}
+//         </div>
+
+//         {/* Start Location */}
+//         <div>
+//           <label className="font-semibold text-gray-700">Start Location</label>
+//           <input
+//             value={sourceName}
+//             onChange={(e) => onSourceNameChange(e.target.value)}
+//             className="mt-1 w-full border rounded-lg p-3"
+//             placeholder="Source"
+//           />
+//           {errors.sourceName && <p className="text-red-500 text-sm">{errors.sourceName}</p>}
+//         </div>
+
+//         {/* End Location */}
+//         <div>
+//           <label className="font-semibold text-gray-700">End Location</label>
+//           <input
+//             value={destinationName}
+//             onChange={(e) => onDestinationNameChange(e.target.value)}
+//             className="mt-1 w-full border rounded-lg p-3"
+//             placeholder="Destination"
+//           />
+//           {errors.destinationName && <p className="text-red-500 text-sm">{errors.destinationName}</p>}
+//         </div>
+
+//         {/* Odometers */}
+//         <div className="grid grid-cols-2 gap-4">
+//           <div>
+//             <label className="font-semibold text-gray-700">Start Odometer</label>
+//             <input
+//               value={startOdometer}
+//               onChange={(e) => onStartOdometerChange(e.target.value)}
+//               className="mt-1 w-full border rounded-lg p-3"
+//               placeholder="e.g. 12345"
+//             />
+//             {errors.startOdometer && <p className="text-red-500 text-sm">{errors.startOdometer}</p>}
 //           </div>
-//         )}
 
-//         {/* Start Trip Section */}
-//         <div>
-//           <h2 className="font-medium text-lg mb-2">Start Trip</h2>
-//           <input type="date" value={tripDate} onChange={e => setTripDate(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-//           <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-//           <input type="text" placeholder="Start Location" value={startLocation} onChange={e => setStartLocation(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-//           <input type="number" placeholder="Start Odometer" value={odometerStart} onChange={e => setOdometerStart(e.target.value)} className="border rounded-lg w-full px-4 py-2" />
+//           <div>
+//             <label className="font-semibold text-gray-700">End Odometer</label>
+//             <input
+//               value={endOdometer}
+//               onChange={(e) => onEndOdometerChange(e.target.value)}
+//               className="mt-1 w-full border rounded-lg p-3"
+//               placeholder="e.g. 12410"
+//             />
+//             {errors.endOdometer && <p className="text-red-500 text-sm">{errors.endOdometer}</p>}
+//           </div>
 //         </div>
 
-//         {/* End Trip Section */}
-//         <div>
-//           <h2 className="font-medium text-lg mb-2">End Trip</h2>
-//           <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-//           <input type="text" placeholder="End Location" value={endLocation} onChange={e => setEndLocation(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-//           <input type="number" placeholder="End Odometer" value={odometerEnd} onChange={e => setOdometerEnd(e.target.value)} className="border rounded-lg w-full px-4 py-2" />
-//         </div>
+//         <div className="text-right text-lg font-semibold">Total KM: {totalKm()}</div>
 
 //         {/* Signatures */}
-//         <div>
-//           <h2 className="font-medium text-lg mb-2">Signatures</h2>
-//           <p className="text-sm">Driver Signature</p>
-//           <SignatureCanvas ref={driverSign} penColor="black" canvasProps={{ width: 300, height: 100, className: "border rounded-md mb-4" }} />
-//           <p className="text-sm">Passenger Signature</p>
-//           <SignatureCanvas ref={passengerSign} penColor="black" canvasProps={{ width: 300, height: 100, className: "border rounded-md" }} />
+//         <div className="bg-white rounded-xl shadow p-4 space-y-4">
+//           <div>
+//             <div className="font-semibold">Driver Signature</div>
+//             <SignaturePad
+//               ref={driverRef}
+//               canvasProps={{
+//                 className: "border w-full h-40 bg-gray-50 rounded",
+//               }}
+//             />
+//             <div className="flex gap-2 mt-2">
+//               <button
+//                 onClick={() => driverRef.current?.clear()}
+//                 className="px-4 py-2 bg-gray-200 rounded cursor-pointer"
+//               >
+//                 Clear
+//               </button>
+
+//               <button
+//                 onClick={saveDriverSignature}
+//                 className="px-4 py-2 bg-black text-white rounded cursor-pointer"
+//               >
+//                 Save
+//               </button>
+
+//               {driverSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+//             </div>
+
+//             {driverSignUrl && <img src={driverSignUrl} alt="driver-sign" className="h-20 mt-3" />}
+//           </div>
+
+//           <div>
+//             <div className="font-semibold">Passenger Signature</div>
+//             <SignaturePad
+//               ref={userRef}
+//               canvasProps={{
+//                 className: "border w-full h-40 bg-gray-50 rounded",
+//               }}
+//             />
+//             <div className="flex gap-2 mt-2">
+//               <button
+//                 onClick={() => userRef.current?.clear()}
+//                 className="px-4 py-2 bg-gray-200 rounded cursor-pointer"
+//               >
+//                 Clear
+//               </button>
+
+//               <button
+//                 onClick={saveUserSignature}
+//                 className="px-4 py-2 bg-black text-white rounded cursor-pointer"
+//               >
+//                 Save
+//               </button>
+
+//               {userSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+//             </div>
+
+//             {userSignUrl && <img src={userSignUrl} alt="user-sign" className="h-20 mt-3" />}
+//           </div>
+
+//           {errors.signatures && <p className="text-red-500 text-sm">{errors.signatures}</p>}
 //         </div>
+//       </div>
 
+//       {error && <p className="text-red-600 text-sm mt-3 text-center">{error}</p>}
+//       {saving && <p className="text-blue-600 text-sm mt-2 text-center">Saving...</p>}
 
-//         <button onClick={handleSave} className="bg-blue-600 text-white w-full rounded-lg py-3 font-medium hover:bg-blue-700 transition">
-//           Validate & Review
+//       {/* Review Button */}
+//       <div className="fixed bottom-0 left-0 right-0 bg-white shadow p-4">
+//         <button
+//           onClick={async () => {
+//             // Ensure last autosave is flushed
+//             await flushTripAutosave();
+
+//             // Validate all required fields — strict
+//             const ok = validateOnSubmit();
+//             if (!ok) {
+//               // scroll to top so user sees errors (optional)
+//               window.scrollTo({ top: 0, behavior: "smooth" });
+//               return;
+//             }
+
+//             const q = new URLSearchParams({
+//               id: String(trip?.id),
+//               mobile,
+//               driverName,
+//               corporateName,
+//               branchName,
+//               vehicleNumber,
+//               tripDate,
+//               startTime,
+//               endTime,
+//               sourceName,
+//               destinationName,
+//               startOdometer,
+//               endOdometer,
+//               totalKm: totalKm(),
+//               driverSign: driverSignUrl,
+//               userSign: userSignUrl,
+//             });
+
+//             router.push(`/validate-trip?${q.toString()}`);
+//           }}
+//           className="w-full bg-black text-white py-3 rounded-lg text-lg font-semibold"
+//         >
+//           Review Trip
 //         </button>
 //       </div>
 //     </div>
 //   );
 // }
-// app/trip-sheet/page.tsx
-"use client";
-import { useEffect, useRef, useState } from "react";
-import SignatureCanvas from "react-signature-canvas";
-import { useRouter } from "next/navigation";
-import { useTripSheet } from "@/hooks/useTripSheet";
 
-type Trip = any;
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import SignaturePad from "react-signature-canvas";
+import { useTripSheet, TripSheet } from "@/hooks/useTripSheet";
+import { debouncedUpdateTripSheet, flushTripAutosave } from "@/utils/TripsheetDebounce";
+import { UploadFiletos3Bucket } from "@/utils/uploadToS3";
+
+const LTR_CONTAINER = "signature";
+
+/**
+ * Key design notes:
+ * - Backend returns full trip object on autosave responses (Option A).
+ * - We MUST NOT overwrite UI state with autosave response.
+ * - Use refs for the "source of truth" when building autosave payloads to avoid stale-setState races.
+ * - Autosave triggers only after user stops typing (800ms).
+ */
 
 export default function TripSheetPage() {
   const router = useRouter();
-  const { saveTripSheet } = useTripSheet();
+  const sp = useSearchParams();
 
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const mobile = sp.get("mobile") || "";
+  const driverName = sp.get("driverName") || "";
+  const corporateName = sp.get("corporateName") || "";
+  const branchName = sp.get("branchName") || "";
+  const vehicleNumber = sp.get("vehicleNumber") || "";
+
+  const { newTripsheetApi } = useTripSheet();
+
+  const [trip, setTrip] = useState<TripSheet | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // UI state (for controlled inputs)
   const [tripDate, setTripDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [startLocation, setStartLocation] = useState("");
-  const [endLocation, setEndLocation] = useState("");
-  const [odometerStart, setOdometerStart] = useState("");
-  const [odometerEnd, setOdometerEnd] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [sourceName, setSourceName] = useState("");
+  const [destinationName, setDestinationName] = useState("");
+  const [startOdometer, setStartOdometer] = useState("");
+  const [endOdometer, setEndOdometer] = useState("");
 
-  const driverSign = useRef<SignatureCanvas | null>(null);
-  const passengerSign = useRef<SignatureCanvas | null>(null);
+  // Refs that mirror UI state and are used to build payload synchronously.
+  const tripIdRef = useRef<number | null>(null);
+  const tripDateRef = useRef<string>("");
+  const startTimeRef = useRef<string>("");
+  const endTimeRef = useRef<string>("");
+  const sourceNameRef = useRef<string>("");
+  const destinationNameRef = useRef<string>("");
+  const startOdometerRef = useRef<string>("");
+  const endOdometerRef = useRef<string>("");
 
+  // Signature refs & urls + lat/lng refs
+  const driverRef = useRef<any>(null);
+  const userRef = useRef<any>(null);
+  const [driverSignUrl, setDriverSignUrl] = useState<string>("");
+  const [userSignUrl, setUserSignUrl] = useState<string>("");
+
+  const driverSignLatRef = useRef<number | null>(null);
+  const driverSignLngRef = useRef<number | null>(null);
+  const userSignLatRef = useRef<number | null>(null);
+  const userSignLngRef = useRef<number | null>(null);
+
+  // keep urls mirrored in refs for payload building
+  const driverSignUrlRef = useRef<string>("");
+  const userSignUrlRef = useRef<string>("");
+
+  // Validation errors
+  const [errors, setErrors] = useState<Record<string, string>>({
+    tripDate: "",
+    startTime: "",
+    endTime: "",
+    sourceName: "",
+    destinationName: "",
+    startOdometer: "",
+    endOdometer: "",
+    signatures: "",
+  });
+
+  // Typing debounce: one timer for all text/number inputs.
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const TYPING_DEBOUNCE_MS = 800;
+
+  // Load trip
   useEffect(() => {
-    const raw = sessionStorage.getItem("currentTrip");
-    if (!raw) {
-      // if no trip in session -> redirect to driver entry
-      router.push("/driver");
+    if (!mobile) {
+      router.push("/");
       return;
     }
-    const data = JSON.parse(raw);
-    setTrip(data);
 
-    // prefill fields if backend returned defaults
-    const now = new Date();
-    setTripDate(data.tripDate ? new Date(data.tripDate).toISOString().split("T")[0] : now.toISOString().split("T")[0]);
+    const load = async () => {
+      try {
+        setError(null);
+        setLoading(true);
+        const t = await newTripsheetApi(mobile);
 
-    // prefer startTime from backend if provided
-    setStartTime(data.startTime ?? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    setEndTime(data.endTime ?? "");
+        setTrip(t);
+        tripIdRef.current = t?.id ?? null;
 
-    setStartLocation(data.sourceName ?? "");
-    setEndLocation(data.destinationName ?? "");
-    setOdometerStart((data as any).odometerStart ?? "");
-    setOdometerEnd((data as any).odometerEnd ?? "");
-  }, [router]);
+        // populate UI state and refs — only on initial load
+        const td = t.tripDate ? t.tripDate.substring(0, 10) : "";
+        setTripDate(td);
+        tripDateRef.current = td;
 
-  const handleSave = async () => {
-    if (!trip) return alert("Trip data not loaded");
-    if (!startLocation || !endLocation || !odometerStart || !odometerEnd) {
-      return alert("Please fill all trip details");
+        setStartTime(t.startTime ?? "");
+        startTimeRef.current = t.startTime ?? "";
+
+        setEndTime(t.endTime ?? "");
+        endTimeRef.current = t.endTime ?? "";
+
+        setSourceName(t.sourceName ?? "");
+        sourceNameRef.current = t.sourceName ?? "";
+
+        setDestinationName(t.destinationName ?? "");
+        destinationNameRef.current = t.destinationName ?? "";
+
+        setStartOdometer(t.startOdometer ? String(t.startOdometer) : "");
+        startOdometerRef.current = t.startOdometer ? String(t.startOdometer) : "";
+
+        setEndOdometer(t.endOdometer ? String(t.endOdometer) : "");
+        endOdometerRef.current = t.endOdometer ? String(t.endOdometer) : "";
+
+        if (t.driverSign) {
+          setDriverSignUrl(t.driverSign);
+          driverSignUrlRef.current = t.driverSign;
+        }
+        if (t.userSign) {
+          setUserSignUrl(t.userSign);
+          userSignUrlRef.current = t.userSign;
+        }
+
+        if (typeof t.driverSignLat === "number") driverSignLatRef.current = t.driverSignLat;
+        if (typeof t.driverSignLng === "number") driverSignLngRef.current = t.driverSignLng;
+        if (typeof t.userSignLat === "number") userSignLatRef.current = t.userSignLat;
+        if (typeof t.userSignLng === "number") userSignLngRef.current = t.userSignLng;
+      } catch (err: any) {
+        setError(err?.message || "Failed to load trip sheet.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobile]);
+
+  // saving indicator (brief)
+  useEffect(() => {
+    if (!saving) return;
+    const id = setTimeout(() => setSaving(false), 700);
+    return () => clearTimeout(id);
+  }, [saving]);
+
+  // Helper: calculate total km from odometer refs (string -> number)
+  const calcTotalKmFromRefs = (): number | null => {
+    const sStr = startOdometerRef.current;
+    const eStr = endOdometerRef.current;
+    const s = sStr ? Number(sStr) : NaN;
+    const e = eStr ? Number(eStr) : NaN;
+    if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+    if (e < s) return null;
+    // keep 2 decimals
+    return Number((e - s).toFixed(2));
+  };
+
+  // For showing in UI (derived from state — fine)
+  const totalKmDisplay = () => {
+    const v = calcTotalKmFromRefs();
+    return v === null ? "" : String(v);
+  };
+
+  // Convert dataURL to File
+  const dataUrlToFile = async (dataUrl: string, fileName: string) => {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    return new File([blob], fileName, { type: "image/png" });
+  };
+
+  // Build full payload from refs — synchronous and always latest
+  const buildFullPayloadFromRefs = (overrides: Record<string, any> = {}) => {
+    const totalKm = calcTotalKmFromRefs();
+    const payload: Record<string, any> = {
+      tripSheetId: tripIdRef.current,
+      tripDate: tripDateRef.current || null,
+      startTime: startTimeRef.current || null,
+      endTime: endTimeRef.current || null,
+      sourceName: sourceNameRef.current?.trim() || null,
+      destinationName: destinationNameRef.current?.trim() || null,
+      startOdometer: startOdometerRef.current ? Number(startOdometerRef.current) : null,
+      endOdometer: endOdometerRef.current ? Number(endOdometerRef.current) : null,
+      totalKm: totalKm !== null ? Number(totalKm.toFixed(2)) : null,
+      driverSign: driverSignUrlRef.current || null,
+      driverSignLat: driverSignLatRef.current ?? null,
+      driverSignLng: driverSignLngRef.current ?? null,
+      userSign: userSignUrlRef.current || null,
+      userSignLat: userSignLatRef.current ?? null,
+      userSignLng: userSignLngRef.current ?? null,
+    };
+
+    return { ...payload, ...overrides };
+  };
+
+  // AUTOSAVE: triggered only after user stops typing (debounced trigger)
+  const scheduleAutosaveFromRefs = (overrides: Record<string, any> = {}) => {
+    if (!tripIdRef.current) return;
+    setSaving(true);
+
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      const full = buildFullPayloadFromRefs(overrides);
+      // send to debouncedUpdateTripSheet — we do NOT apply returned data into UI
+      debouncedUpdateTripSheet(full);
+    }, TYPING_DEBOUNCE_MS);
+  };
+
+  // flush wrapper: used by Review button
+  const flushAndReturn = async () => {
+    // clear any pending typing timer so flushTripAutosave sends latest pendingPayload
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
     }
 
+    // Before flush, ensure pendingPayload contains latest values:
+    // call debouncedUpdateTripSheet synchronously (it will set pendingPayload)
+    const full = buildFullPayloadFromRefs();
+    debouncedUpdateTripSheet(full);
+
+    // then flush
+    await flushTripAutosave();
+  };
+
+  // Input handlers: update state AND refs immediately; schedule autosave
+  const onTripDateChange = (v: string) => {
+    setTripDate(v);
+    tripDateRef.current = v;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onStartTimeChange = (v: string) => {
+    setStartTime(v);
+    startTimeRef.current = v;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onEndTimeChange = (v: string) => {
+    setEndTime(v);
+    endTimeRef.current = v;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onSourceNameChange = (v: string) => {
+    setSourceName(v);
+    sourceNameRef.current = v;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onDestinationNameChange = (v: string) => {
+    setDestinationName(v);
+    destinationNameRef.current = v;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onStartOdometerChange = (v: string) => {
+    // keep only digits and optional decimal (if you need decimals)
+    const clean = v.replace(/[^\d.]/g, "");
+    setStartOdometer(clean);
+    startOdometerRef.current = clean;
+    scheduleAutosaveFromRefs();
+  };
+
+  const onEndOdometerChange = (v: string) => {
+    const clean = v.replace(/[^\d.]/g, "");
+    setEndOdometer(clean);
+    endOdometerRef.current = clean;
+    scheduleAutosaveFromRefs();
+  };
+
+  // Strict validation used at final submit
+  const validateOnSubmit = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!tripDateRef.current) newErrors.tripDate = "Trip date is required.";
+    if (!startTimeRef.current) newErrors.startTime = "Start time is required.";
+    if (!endTimeRef.current) newErrors.endTime = "End time is required.";
+    if (!sourceNameRef.current?.trim()) newErrors.sourceName = "Start location is required.";
+    if (!destinationNameRef.current?.trim()) newErrors.destinationName = "End location is required.";
+    if (!startOdometerRef.current) newErrors.startOdometer = "Start odometer is required.";
+    if (!endOdometerRef.current) newErrors.endOdometer = "End odometer is required.";
+
+    // numeric checks
+    const s = startOdometerRef.current ? Number(startOdometerRef.current) : NaN;
+    const e = endOdometerRef.current ? Number(endOdometerRef.current) : NaN;
+    if (startOdometerRef.current && (!Number.isFinite(s) || s < 0)) {
+      newErrors.startOdometer = "Start odometer must be a valid non-negative number.";
+    }
+    if (endOdometerRef.current && (!Number.isFinite(e) || e < 0)) {
+      newErrors.endOdometer = "End odometer must be a valid non-negative number.";
+    }
+    if (Number.isFinite(s) && Number.isFinite(e) && e < s) {
+      newErrors.endOdometer = "End odometer must be greater than or equal to start odometer.";
+    }
+
+    // total km consistency
+    const totalKm = calcTotalKmFromRefs();
+    if (totalKm === null) {
+      newErrors.endOdometer = newErrors.endOdometer || "Total KM cannot be determined from odometer values.";
+    }
+
+    // signatures required
+    if (!driverSignUrlRef.current || !userSignUrlRef.current) {
+      newErrors.signatures = "Driver and passenger signatures are mandatory.";
+    }
+
+    setErrors((prev) => ({ ...prev, ...newErrors }));
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Signature save that populates url refs and lat/lng refs then autosaves
+  const saveDriverSignature = async () => {
     try {
-      setSaving(true);
+      if (!driverRef.current || driverRef.current.isEmpty()) {
+        setError("Please provide driver signature before saving.");
+        return;
+      }
 
-      const driverSignature = driverSign.current?.isEmpty() ? null : driverSign.current?.getTrimmedCanvas().toDataURL();
-      const passengerSignature = passengerSign.current?.isEmpty() ? null : passengerSign.current?.getTrimmedCanvas().toDataURL();
+      const dataUrl = driverRef.current.getTrimmedCanvas().toDataURL("image/png");
+      const file = await dataUrlToFile(dataUrl, `driver-sign-${Date.now()}.png`);
+      const url = await UploadFiletos3Bucket(file, LTR_CONTAINER);
 
-      // Build body mapping to backend entity fields
-      const body: any = {
-        startTime: startTime || null,
-        endTime: endTime || null,
-        sourceName: startLocation,
-        destinationName: endLocation,
-        odometerStart: odometerStart,
-        odometerEnd: odometerEnd,
-      };
+      setDriverSignUrl(url);
+      driverSignUrlRef.current = url;
 
-      if (driverSignature) body.driverSign = driverSignature;
-      if (passengerSignature) body.userSign = passengerSignature;
-
-      // send PATCH to save/:id (id exists on trip)
-      await saveTripSheet(Number(trip.id), body);
-
-      const updatedTrip = { ...trip, ...body };
-      // save updated trip in session storage for next pages
-      sessionStorage.setItem("currentTrip", JSON.stringify(updatedTrip));
-      setSaving(false);
-      router.push("/validate-trip");
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            driverSignLatRef.current = pos.coords.latitude;
+            driverSignLngRef.current = pos.coords.longitude;
+            scheduleAutosaveFromRefs();
+          },
+          () => {
+            driverSignLatRef.current = null;
+            driverSignLngRef.current = null;
+            scheduleAutosaveFromRefs();
+          },
+          { timeout: 5000 }
+        );
+      } else {
+        driverSignLatRef.current = null;
+        driverSignLngRef.current = null;
+        scheduleAutosaveFromRefs();
+      }
     } catch (err: any) {
-      setSaving(false);
-      console.error(err);
-      alert("Failed to save trip: " + (err?.message ?? ""));
+      console.error("Driver signature upload failed", err);
+      setError("Driver signature upload failed");
     }
   };
 
-  if (!trip) return <p className="text-center mt-10">Loading trip...</p>;
+  const saveUserSignature = async () => {
+    try {
+      if (!userRef.current || userRef.current.isEmpty()) {
+        setError("Please provide passenger signature before saving.");
+        return;
+      }
+
+      const dataUrl = userRef.current.getTrimmedCanvas().toDataURL("image/png");
+      const file = await dataUrlToFile(dataUrl, `user-sign-${Date.now()}.png`);
+      const url = await UploadFiletos3Bucket(file, LTR_CONTAINER);
+
+      setUserSignUrl(url);
+      userSignUrlRef.current = url;
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            userSignLatRef.current = pos.coords.latitude;
+            userSignLngRef.current = pos.coords.longitude;
+            scheduleAutosaveFromRefs();
+          },
+          () => {
+            userSignLatRef.current = null;
+            userSignLngRef.current = null;
+            scheduleAutosaveFromRefs();
+          },
+          { timeout: 5000 }
+        );
+      } else {
+        userSignLatRef.current = null;
+        userSignLngRef.current = null;
+        scheduleAutosaveFromRefs();
+      }
+    } catch (err: any) {
+      console.error("Passenger signature upload failed", err);
+      setError("Passenger signature upload failed");
+    }
+  };
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
+
+  if (error && !trip)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-600">
+        {error}
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center px-4 py-6">
-      <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-md space-y-6">
-        <h1 className="text-2xl font-semibold text-center mb-4">Trip Sheet</h1>
+    <div className="min-h-screen bg-gray-100 pt-16 pb-16 p-4">
+      <div className="bg-white rounded-xl shadow p-4 space-y-2">
+        <div className="font-semibold text-lg">Trip Information</div>
 
-        <div className="space-y-1 text-sm">
-          <p><strong>Mobile:</strong> {trip.driver?.mobileNumber ?? trip.mobile ?? trip.driverMobile ?? trip.driver?.mobile}</p>
-          <p><strong>Driver:</strong> {trip.driver?.name ?? trip.driverName ?? ""}</p>
-          <p><strong>Vehicle:</strong> {trip.vehicle?.vehicleNumber ?? trip.vehicleNo ?? ""}</p>
-          <p><strong>Corporate:</strong> {trip.corporate?.corporateName ?? trip.corporateName ?? ""}</p>
+        <div className="text-sm text-gray-700 flex justify-between">
+          <span>Driver:</span>
+          <span className="font-medium">{driverName}</span>
         </div>
 
+        <div className="text-sm text-gray-700 flex justify-between">
+          <span>Mobile:</span>
+          <span className="font-medium">{mobile}</span>
+        </div>
+
+        <div className="text-sm text-gray-700 flex justify-between">
+          <span>Corporate:</span>
+          <span className="font-medium">{corporateName}</span>
+        </div>
+
+        <div className="text-sm text-gray-700 flex justify-between">
+          <span>Branch:</span>
+          <span className="font-medium">{branchName}</span>
+        </div>
+
+        <div className="text-sm text-gray-700 flex justify-between">
+          <span>Vehicle:</span>
+          <span className="font-medium">{vehicleNumber}</span>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {/* Trip Date */}
         <div>
-          <h2 className="font-medium text-lg mb-2">Start Trip</h2>
-          <input type="date" value={tripDate} onChange={e => setTripDate(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-          <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-          <input type="text" placeholder="Start Location" value={startLocation} onChange={e => setStartLocation(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-          <input type="number" placeholder="Start Odometer" value={odometerStart} onChange={e => setOdometerStart(e.target.value)} className="border rounded-lg w-full px-4 py-2" />
+          <label className="font-semibold text-gray-700">Trip Date</label>
+          <input
+            type="date"
+            value={tripDate}
+            onChange={(e) => onTripDateChange(e.target.value)}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
+          {errors.tripDate && <p className="text-red-500 text-sm">{errors.tripDate}</p>}
         </div>
 
+        {/* Start Time */}
         <div>
-          <h2 className="font-medium text-lg mb-2">End Trip</h2>
-          <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-          <input type="text" placeholder="End Location" value={endLocation} onChange={e => setEndLocation(e.target.value)} className="border rounded-lg w-full px-4 py-2 mb-2" />
-          <input type="number" placeholder="End Odometer" value={odometerEnd} onChange={e => setOdometerEnd(e.target.value)} className="border rounded-lg w-full px-4 py-2" />
+          <label className="font-semibold text-gray-700">Start Time</label>
+          <input
+            type="time"
+            value={startTime}
+            onChange={(e) => onStartTimeChange(e.target.value)}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
+          {errors.startTime && <p className="text-red-500 text-sm">{errors.startTime}</p>}
         </div>
 
+        {/* End Time */}
         <div>
-          <h2 className="font-medium text-lg mb-2">Signatures</h2>
-          <p className="text-sm">Driver Signature</p>
-          <SignatureCanvas ref={driverSign} penColor="black" canvasProps={{ width: 300, height: 100, className: "border rounded-md mb-4" }} />
-          <p className="text-sm">Passenger Signature</p>
-          <SignatureCanvas ref={passengerSign} penColor="black" canvasProps={{ width: 300, height: 100, className: "border rounded-md" }} />
+          <label className="font-semibold text-gray-700">End Time</label>
+          <input
+            type="time"
+            value={endTime}
+            onChange={(e) => onEndTimeChange(e.target.value)}
+            className="mt-1 w-full border rounded-lg p-3"
+          />
+          {errors.endTime && <p className="text-red-500 text-sm">{errors.endTime}</p>}
         </div>
 
-        <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white w-full rounded-lg py-3 font-medium hover:bg-blue-700 transition disabled:opacity-60">
-          {saving ? "Saving..." : "Validate & Review"}
+        {/* Start Location */}
+        <div>
+          <label className="font-semibold text-gray-700">Start Location</label>
+          <input
+            value={sourceName}
+            onChange={(e) => onSourceNameChange(e.target.value)}
+            className="mt-1 w-full border rounded-lg p-3"
+            placeholder="Source"
+          />
+          {errors.sourceName && <p className="text-red-500 text-sm">{errors.sourceName}</p>}
+        </div>
+
+        {/* End Location */}
+        <div>
+          <label className="font-semibold text-gray-700">End Location</label>
+          <input
+            value={destinationName}
+            onChange={(e) => onDestinationNameChange(e.target.value)}
+            className="mt-1 w-full border rounded-lg p-3"
+            placeholder="Destination"
+          />
+          {errors.destinationName && <p className="text-red-500 text-sm">{errors.destinationName}</p>}
+        </div>
+
+        {/* Odometers */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="font-semibold text-gray-700">Start Odometer</label>
+            <input
+              value={startOdometer}
+              onChange={(e) => onStartOdometerChange(e.target.value)}
+              className="mt-1 w-full border rounded-lg p-3"
+              placeholder="e.g. 12345"
+            />
+            {errors.startOdometer && <p className="text-red-500 text-sm">{errors.startOdometer}</p>}
+          </div>
+
+          <div>
+            <label className="font-semibold text-gray-700">End Odometer</label>
+            <input
+              value={endOdometer}
+              onChange={(e) => onEndOdometerChange(e.target.value)}
+              className="mt-1 w-full border rounded-lg p-3"
+              placeholder="e.g. 12410"
+            />
+            {errors.endOdometer && <p className="text-red-500 text-sm">{errors.endOdometer}</p>}
+          </div>
+        </div>
+
+        <div className="text-right text-lg font-semibold">Total KM: {totalKmDisplay()}</div>
+
+        {/* Signatures */}
+        <div className="bg-white rounded-xl shadow p-4 space-y-4">
+          <div>
+            <div className="font-semibold">Driver Signature</div>
+            <SignaturePad
+              ref={driverRef}
+              canvasProps={{
+                className: "border w-full h-40 bg-gray-50 rounded",
+              }}
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => driverRef.current?.clear()}
+                className="px-4 py-2 bg-gray-200 rounded cursor-pointer"
+              >
+                Clear
+              </button>
+
+              <button
+                onClick={saveDriverSignature}
+                className="px-4 py-2 bg-black text-white rounded cursor-pointer"
+              >
+                Save
+              </button>
+
+              {driverSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+            </div>
+
+            {driverSignUrl && <img src={driverSignUrl} alt="driver-sign" className="h-20 mt-3" />}
+          </div>
+
+          <div>
+            <div className="font-semibold">Passenger Signature</div>
+            <SignaturePad
+              ref={userRef}
+              canvasProps={{
+                className: "border w-full h-40 bg-gray-50 rounded",
+              }}
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => userRef.current?.clear()}
+                className="px-4 py-2 bg-gray-200 rounded cursor-pointer"
+              >
+                Clear
+              </button>
+
+              <button
+                onClick={saveUserSignature}
+                className="px-4 py-2 bg-black text-white rounded cursor-pointer"
+              >
+                Save
+              </button>
+
+              {userSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+            </div>
+
+            {userSignUrl && <img src={userSignUrl} alt="user-sign" className="h-20 mt-3" />}
+          </div>
+
+          {errors.signatures && <p className="text-red-500 text-sm">{errors.signatures}</p>}
+        </div>
+      </div>
+
+      {error && <p className="text-red-600 text-sm mt-3 text-center">{error}</p>}
+      {saving && <p className="text-blue-600 text-sm mt-2 text-center">Saving...</p>}
+
+      {/* Review Button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white shadow p-4">
+        <button
+          onClick={async () => {
+            await flushAndReturn();
+
+            const ok = validateOnSubmit();
+            if (!ok) {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              return;
+            }
+
+            const finalPayload = buildFullPayloadFromRefs();
+
+            const q = new URLSearchParams({
+              id: String(finalPayload.tripSheetId),
+              mobile,
+              driverName,
+              corporateName,
+              branchName,
+              vehicleNumber,
+              tripDate: finalPayload.tripDate ?? "",
+              startTime: finalPayload.startTime ?? "",
+              endTime: finalPayload.endTime ?? "",
+              sourceName: finalPayload.sourceName ?? "",
+              destinationName: finalPayload.destinationName ?? "",
+              startOdometer: finalPayload.startOdometer ? String(finalPayload.startOdometer) : "",
+              endOdometer: finalPayload.endOdometer ? String(finalPayload.endOdometer) : "",
+              totalKm: finalPayload.totalKm ? String(finalPayload.totalKm) : "",
+              driverSign: finalPayload.driverSign ?? "",
+              userSign: finalPayload.userSign ?? "",
+            });
+
+            router.push(`/validate-trip?${q.toString()}`);
+          }}
+          className="w-full bg-black text-white py-3 rounded-lg text-lg font-semibold"
+        >
+          Review Trip
         </button>
       </div>
     </div>
