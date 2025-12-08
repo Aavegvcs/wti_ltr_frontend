@@ -1,4 +1,3 @@
-
 // "use client";
 
 // import { useEffect, useRef, useState } from "react";
@@ -489,7 +488,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import SignaturePad from "react-signature-canvas";
 import { useTripSheet, TripSheet } from "@/hooks/useTripSheet";
-import { debouncedUpdateTripSheet, flushTripAutosave } from "@/utils/TripsheetDebounce";
+import {
+  debouncedUpdateTripSheet,
+  flushTripAutosave,
+} from "@/utils/TripsheetDebounce";
 import { UploadFiletos3Bucket } from "@/utils/uploadToS3";
 
 const LTR_CONTAINER = "signature";
@@ -603,7 +605,9 @@ export default function TripSheetPage() {
         destinationNameRef.current = t.destinationName ?? "";
 
         setStartOdometer(t.startOdometer ? String(t.startOdometer) : "");
-        startOdometerRef.current = t.startOdometer ? String(t.startOdometer) : "";
+        startOdometerRef.current = t.startOdometer
+          ? String(t.startOdometer)
+          : "";
 
         setEndOdometer(t.endOdometer ? String(t.endOdometer) : "");
         endOdometerRef.current = t.endOdometer ? String(t.endOdometer) : "";
@@ -617,10 +621,14 @@ export default function TripSheetPage() {
           userSignUrlRef.current = t.userSign;
         }
 
-        if (typeof t.driverSignLat === "number") driverSignLatRef.current = t.driverSignLat;
-        if (typeof t.driverSignLng === "number") driverSignLngRef.current = t.driverSignLng;
-        if (typeof t.userSignLat === "number") userSignLatRef.current = t.userSignLat;
-        if (typeof t.userSignLng === "number") userSignLngRef.current = t.userSignLng;
+        if (typeof t.driverSignLat === "number")
+          driverSignLatRef.current = t.driverSignLat;
+        if (typeof t.driverSignLng === "number")
+          driverSignLngRef.current = t.driverSignLng;
+        if (typeof t.userSignLat === "number")
+          userSignLatRef.current = t.userSignLat;
+        if (typeof t.userSignLng === "number")
+          userSignLngRef.current = t.userSignLng;
       } catch (err: any) {
         setError(err?.message || "Failed to load trip sheet.");
       } finally {
@@ -674,8 +682,12 @@ export default function TripSheetPage() {
       endTime: endTimeRef.current || null,
       sourceName: sourceNameRef.current?.trim() || null,
       destinationName: destinationNameRef.current?.trim() || null,
-      startOdometer: startOdometerRef.current ? Number(startOdometerRef.current) : null,
-      endOdometer: endOdometerRef.current ? Number(endOdometerRef.current) : null,
+      startOdometer: startOdometerRef.current
+        ? Number(startOdometerRef.current)
+        : null,
+      endOdometer: endOdometerRef.current
+        ? Number(endOdometerRef.current)
+        : null,
       totalKm: totalKm !== null ? Number(totalKm.toFixed(2)) : null,
       driverSign: driverSignUrlRef.current || null,
       driverSignLat: driverSignLatRef.current ?? null,
@@ -770,28 +782,37 @@ export default function TripSheetPage() {
     if (!tripDateRef.current) newErrors.tripDate = "Trip date is required.";
     if (!startTimeRef.current) newErrors.startTime = "Start time is required.";
     if (!endTimeRef.current) newErrors.endTime = "End time is required.";
-    if (!sourceNameRef.current?.trim()) newErrors.sourceName = "Start location is required.";
-    if (!destinationNameRef.current?.trim()) newErrors.destinationName = "End location is required.";
-    if (!startOdometerRef.current) newErrors.startOdometer = "Start odometer is required.";
-    if (!endOdometerRef.current) newErrors.endOdometer = "End odometer is required.";
+    if (!sourceNameRef.current?.trim())
+      newErrors.sourceName = "Start location is required.";
+    if (!destinationNameRef.current?.trim())
+      newErrors.destinationName = "End location is required.";
+    if (!startOdometerRef.current)
+      newErrors.startOdometer = "Start odometer is required.";
+    if (!endOdometerRef.current)
+      newErrors.endOdometer = "End odometer is required.";
 
     // numeric checks
     const s = startOdometerRef.current ? Number(startOdometerRef.current) : NaN;
     const e = endOdometerRef.current ? Number(endOdometerRef.current) : NaN;
     if (startOdometerRef.current && (!Number.isFinite(s) || s < 0)) {
-      newErrors.startOdometer = "Start odometer must be a valid non-negative number.";
+      newErrors.startOdometer =
+        "Start odometer must be a valid non-negative number.";
     }
     if (endOdometerRef.current && (!Number.isFinite(e) || e < 0)) {
-      newErrors.endOdometer = "End odometer must be a valid non-negative number.";
+      newErrors.endOdometer =
+        "End odometer must be a valid non-negative number.";
     }
     if (Number.isFinite(s) && Number.isFinite(e) && e < s) {
-      newErrors.endOdometer = "End odometer must be greater than or equal to start odometer.";
+      newErrors.endOdometer =
+        "End odometer must be greater than or equal to start odometer.";
     }
 
     // total km consistency
     const totalKm = calcTotalKmFromRefs();
     if (totalKm === null) {
-      newErrors.endOdometer = newErrors.endOdometer || "Total KM cannot be determined from odometer values.";
+      newErrors.endOdometer =
+        newErrors.endOdometer ||
+        "Total KM cannot be determined from odometer values.";
     }
 
     // signatures required
@@ -803,6 +824,10 @@ export default function TripSheetPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const clearFieldError = (field: string) => {
+    setErrors((prev) => ({ ...prev, [field]: "" }));
+  };
+
   // Signature save that populates url refs and lat/lng refs then autosaves
   const saveDriverSignature = async () => {
     try {
@@ -811,12 +836,18 @@ export default function TripSheetPage() {
         return;
       }
 
-      const dataUrl = driverRef.current.getTrimmedCanvas().toDataURL("image/png");
-      const file = await dataUrlToFile(dataUrl, `driver-sign-${Date.now()}.png`);
+      const dataUrl = driverRef.current
+        .getTrimmedCanvas()
+        .toDataURL("image/png");
+      const file = await dataUrlToFile(
+        dataUrl,
+        `driver-sign-${Date.now()}.png`
+      );
       const url = await UploadFiletos3Bucket(file, LTR_CONTAINER);
 
       setDriverSignUrl(url);
       driverSignUrlRef.current = url;
+      setErrors((prev) => ({ ...prev, signatures: "" }));
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
@@ -856,6 +887,8 @@ export default function TripSheetPage() {
 
       setUserSignUrl(url);
       userSignUrlRef.current = url;
+      setErrors((prev) => ({ ...prev, signatures: "" }));
+
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
@@ -922,17 +955,23 @@ export default function TripSheetPage() {
         </div>
       </div>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-6 space-y-4  mb-6">
         {/* Trip Date */}
         <div>
           <label className="font-semibold text-gray-700">Trip Date</label>
           <input
             type="date"
             value={tripDate}
-            onChange={(e) => onTripDateChange(e.target.value)}
+            onChange={(e) => {
+              onTripDateChange(e.target.value);
+              clearFieldError("tripDate");
+            }}
             className="mt-1 w-full border rounded-lg p-3"
+            
           />
-          {errors.tripDate && <p className="text-red-500 text-sm">{errors.tripDate}</p>}
+          {errors.tripDate && (
+            <p className="text-red-500 text-sm">{errors.tripDate}</p>
+          )}
         </div>
 
         {/* Start Time */}
@@ -941,10 +980,15 @@ export default function TripSheetPage() {
           <input
             type="time"
             value={startTime}
-            onChange={(e) => onStartTimeChange(e.target.value)}
+            onChange={(e) => {
+              onStartTimeChange(e.target.value);
+              clearFieldError("startTime");
+            }}
             className="mt-1 w-full border rounded-lg p-3"
           />
-          {errors.startTime && <p className="text-red-500 text-sm">{errors.startTime}</p>}
+          {errors.startTime && (
+            <p className="text-red-500 text-sm">{errors.startTime}</p>
+          )}
         </div>
 
         {/* End Time */}
@@ -953,10 +997,15 @@ export default function TripSheetPage() {
           <input
             type="time"
             value={endTime}
-            onChange={(e) => onEndTimeChange(e.target.value)}
+            onChange={(e) => {
+              onEndTimeChange(e.target.value);
+              clearFieldError("endTime");
+            }}
             className="mt-1 w-full border rounded-lg p-3"
           />
-          {errors.endTime && <p className="text-red-500 text-sm">{errors.endTime}</p>}
+          {errors.endTime && (
+            <p className="text-red-500 text-sm">{errors.endTime}</p>
+          )}
         </div>
 
         {/* Start Location */}
@@ -964,11 +1013,16 @@ export default function TripSheetPage() {
           <label className="font-semibold text-gray-700">Start Location</label>
           <input
             value={sourceName}
-            onChange={(e) => onSourceNameChange(e.target.value)}
+            onChange={(e) => {
+              onSourceNameChange(e.target.value);
+              clearFieldError("sourceName");
+            }}
             className="mt-1 w-full border rounded-lg p-3"
             placeholder="Source"
           />
-          {errors.sourceName && <p className="text-red-500 text-sm">{errors.sourceName}</p>}
+          {errors.sourceName && (
+            <p className="text-red-500 text-sm">{errors.sourceName}</p>
+          )}
         </div>
 
         {/* End Location */}
@@ -976,39 +1030,58 @@ export default function TripSheetPage() {
           <label className="font-semibold text-gray-700">End Location</label>
           <input
             value={destinationName}
-            onChange={(e) => onDestinationNameChange(e.target.value)}
+            onChange={(e) => {
+              onDestinationNameChange(e.target.value);
+              clearFieldError("destinationName");
+            }}
             className="mt-1 w-full border rounded-lg p-3"
             placeholder="Destination"
           />
-          {errors.destinationName && <p className="text-red-500 text-sm">{errors.destinationName}</p>}
+          {errors.destinationName && (
+            <p className="text-red-500 text-sm">{errors.destinationName}</p>
+          )}
         </div>
 
         {/* Odometers */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="font-semibold text-gray-700">Start Odometer</label>
+            <label className="font-semibold text-gray-700">
+              Start Odometer
+            </label>
             <input
               value={startOdometer}
-              onChange={(e) => onStartOdometerChange(e.target.value)}
+              onChange={(e) => {
+                onStartOdometerChange(e.target.value);
+                clearFieldError("startOdometer");
+              }}
               className="mt-1 w-full border rounded-lg p-3"
               placeholder="e.g. 12345"
             />
-            {errors.startOdometer && <p className="text-red-500 text-sm">{errors.startOdometer}</p>}
+            {errors.startOdometer && (
+              <p className="text-red-500 text-sm">{errors.startOdometer}</p>
+            )}
           </div>
 
           <div>
             <label className="font-semibold text-gray-700">End Odometer</label>
             <input
               value={endOdometer}
-              onChange={(e) => onEndOdometerChange(e.target.value)}
+              onChange={(e) => {
+                onEndOdometerChange(e.target.value);
+                clearFieldError("endOdometer");
+              }}
               className="mt-1 w-full border rounded-lg p-3"
               placeholder="e.g. 12410"
             />
-            {errors.endOdometer && <p className="text-red-500 text-sm">{errors.endOdometer}</p>}
+            {errors.endOdometer && (
+              <p className="text-red-500 text-sm">{errors.endOdometer}</p>
+            )}
           </div>
         </div>
 
-        <div className="text-right text-lg font-semibold">Total KM: {totalKmDisplay()}</div>
+        <div className="text-right text-lg font-semibold">
+          Total KM: {totalKmDisplay()}
+        </div>
 
         {/* Signatures */}
         <div className="bg-white rounded-xl shadow p-4 space-y-4">
@@ -1035,10 +1108,20 @@ export default function TripSheetPage() {
                 Save
               </button>
 
-              {driverSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+              {driverSignUrl && (
+                <span className="text-sm text-green-600 self-center">
+                  Saved ✓
+                </span>
+              )}
             </div>
 
-            {driverSignUrl && <img src={driverSignUrl} alt="driver-sign" className="h-20 mt-3" />}
+            {driverSignUrl && (
+              <img
+                src={driverSignUrl}
+                alt="driver-sign"
+                className="h-20 mt-3"
+              />
+            )}
           </div>
 
           <div>
@@ -1064,18 +1147,30 @@ export default function TripSheetPage() {
                 Save
               </button>
 
-              {userSignUrl && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+              {userSignUrl && (
+                <span className="text-sm text-green-600 self-center">
+                  Saved ✓
+                </span>
+              )}
             </div>
 
-            {userSignUrl && <img src={userSignUrl} alt="user-sign" className="h-20 mt-3" />}
+            {userSignUrl && (
+              <img src={userSignUrl} alt="user-sign" className="h-20 mt-3" />
+            )}
           </div>
 
-          {errors.signatures && <p className="text-red-500 text-sm">{errors.signatures}</p>}
+          {errors.signatures && (
+            <p className="text-red-500 text-sm">{errors.signatures}</p>
+          )}
         </div>
       </div>
 
-      {error && <p className="text-red-600 text-sm mt-3 text-center">{error}</p>}
-      {saving && <p className="text-blue-600 text-sm mt-2 text-center">Saving...</p>}
+      {error && (
+        <p className="text-red-600 text-sm mt-3 text-center">{error}</p>
+      )}
+      {saving && (
+        <p className="text-blue-600 text-sm mt-2 text-center">Saving...</p>
+      )}
 
       {/* Review Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow p-4">
@@ -1103,8 +1198,12 @@ export default function TripSheetPage() {
               endTime: finalPayload.endTime ?? "",
               sourceName: finalPayload.sourceName ?? "",
               destinationName: finalPayload.destinationName ?? "",
-              startOdometer: finalPayload.startOdometer ? String(finalPayload.startOdometer) : "",
-              endOdometer: finalPayload.endOdometer ? String(finalPayload.endOdometer) : "",
+              startOdometer: finalPayload.startOdometer
+                ? String(finalPayload.startOdometer)
+                : "",
+              endOdometer: finalPayload.endOdometer
+                ? String(finalPayload.endOdometer)
+                : "",
               totalKm: finalPayload.totalKm ? String(finalPayload.totalKm) : "",
               driverSign: finalPayload.driverSign ?? "",
               userSign: finalPayload.userSign ?? "",
