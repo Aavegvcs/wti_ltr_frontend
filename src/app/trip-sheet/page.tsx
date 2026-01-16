@@ -318,9 +318,9 @@ export default function TripSheetPage() {
       newErrors.endOdometer =
         "End odometer must be a valid non-negative number.";
     }
-    if (Number.isFinite(s) && Number.isFinite(e) && e < s) {
+    if (Number.isFinite(s) && Number.isFinite(e) && e <= s) {
       newErrors.endOdometer =
-        "End odometer must be greater than or equal to start odometer.";
+        "End odometer must be greater than to start odometer.";
     }
 
     // total km consistency
@@ -737,7 +737,10 @@ export default function TripSheetPage() {
 
             router.push(`/validate-trip?${q.toString()}`);
           }}
-          className="w-full bg-black text-white py-3 rounded-lg text-lg font-semibold"
+          // className="w-full bg-black text-white cursor-pointer py-3 rounded-lg text-lg font-semibold"
+          className={`ripple w-full bg-black text-white cursor-pointer text-lg py-4 rounded-lg font-semibold
+    flex items-center justify-center gap-3
+    disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           Review Trip
         </button>

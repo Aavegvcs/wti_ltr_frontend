@@ -28,10 +28,10 @@ export default function ValidateTrip() {
 
   const driverSign = sp.get("driverSign") || "";
   const userSign = sp.get("userSign") || "";
-  const driverSignLat = sp.get("driverSignLat") ;
-  const driverSignLng = sp.get("driverSignLng");
-  const userSignLat = sp.get("userSignLat");
-  const userSignLng = sp.get("userSignLng");
+  const driverSignLat = sp.get("driverSignLat") || null;
+  const driverSignLng = sp.get("driverSignLng") || null;
+  const userSignLat = sp.get("userSignLat") || null;
+  const userSignLng = sp.get("userSignLng") || null;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +49,7 @@ export default function ValidateTrip() {
         destinationName,
         startOdometer,
         endOdometer,
-        totalKm,      
+        totalKm,
         driverSign,
         userSign,
         driverSignLat: driverSignLat,
@@ -183,7 +183,10 @@ export default function ValidateTrip() {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full bg-black text-white py-4 rounded-lg text-lg font-bold"
+          // className="w-full bg-black cursor-pointer text-white py-4 rounded-lg text-lg font-bold"
+          className={`ripple w-full bg-black text-white cursor-pointer text-lg py-4 rounded-lg font-semibold
+    flex items-center justify-center gap-3
+    disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           {loading ? "Submitting..." : "Submit Trip Sheet"}
         </button>
@@ -193,7 +196,10 @@ export default function ValidateTrip() {
               `/trip-sheet?mobile=${mobile}&driverName=${driverName}&corporateName=${corporateName}&branchName=${branchName}&vehicleNumber=${vehicleNumber}`
             )
           }
-          className="w-full mt-2 border py-3 rounded-lg text-lg font-semibold"
+          className="w-full mt-2 border py-3 rounded-lg cursor-pointer text-lg font-semibold"
+    //       className={`ripple w-full bg-black text-white cursor-pointer text-lg py-4 rounded-lg font-semibold
+    // flex items-center justify-center gap-3
+    // disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           Edit Trip
         </button>
